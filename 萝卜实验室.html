@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>萝卜实验室：城市进化模拟器</title>
+  <style>
+    :root {
+      --pixel: 4px;
+      --blue: #2563eb;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --dark: #1e293b;
+      --road: #374151;
+      --sidewalk: #6b7280;
+      --sky: #bfdbfe;
+      --build1: #3b82f6;
+      --build2: #f97316;
+      --build3: #10b981;
+      --build4: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f172a;
+      font-family: 'Courier New', monospace;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      width: 100%;
+      max-width: 960px;
+      padding: 18px 24px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: #2563eb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      image-rendering: pixelated;
+    }
+
+    .logo-text {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #60a5fa;
+    }
+
+    .logo-sub {
+      font-size: 0.65rem;
+      color: #94a3b8;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      background: #1e40af;
+      color: #bfdbfe;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+    }
+
+    /* ===== CITY MAP ===== */
+    .city-wrap {
+      width: 100%;
+      max-width: 960px;
+      padding: 0 16px;
+      position: relative;
+    }
+
+    .city-title {
+      font-size: 0.72rem;
+      color: #64748b;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      padding-left: 4px;
+    }
+
+    .city-canvas {
+      width: 100%;
+      height: 340px;
+      background: var(--sky);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      border: 2px solid #1e3a8a;
+      cursor: default;
+      image-rendering: pixelated;
+    }
+
+    /* Sky gradient */
+    .sky-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, #bfdbfe 0%, #dbeafe 60%, #e0f2fe 100%);
+    }
+
+    /* Sun */
+    .sun {
+      position: absolute;
+      top: 18px; right: 80px;
+      width: 36px; height: 36px;
+      background: #fde68a;
+      border-radius: 50%;
+      box-shadow: 0 0 0 6px #fef3c7, 0 0 30px #fbbf24;
+      animation: sunPulse 3s ease-in-out infinite;
+    }
+    @keyframes sunPulse {
+      0%,100% { box-shadow: 0 0 0 6px #fef3c7, 0 0 20px #fbbf24; }
+      50% { box-shadow: 0 0 0 10px #fef3c7, 0 0 40px #fbbf24; }
+    }
+
+    /* Clouds */
+    .cloud {
+      position: absolute;
+      background: #fff;
+      border-radius: 50px;
+      opacity: 0.85;
+      animation: cloudMove linear infinite;
+    }
+    .cloud::before, .cloud::after {
+      content: '';
+      position: absolute;
+      background: #fff;
+      border-radius: 50%;
+    }
+    .c1 { width:80px;height:22px; top:30px; left:-80px; animation-duration:18s; animation-delay:0s; }
+    .c1::before { width:36px;height:36px; top:-18px; left:12px; }
+    .c1::after  { width:28px;height:28px; top:-14px; left:38px; }
+    .c2 { width:60px;height:16px; top:55px; left:-60px; animation-duration:25s; animation-delay:-10s; }
+    .c2::before { width:26px;height:26px; top:-14px; left:8px; }
+    .c2::after  { width:20px;height:20px; top:-10px; left:28px; }
+    .c3 { width:90px;height:20px; top:20px; left:-90px; animation-duration:32s; animation-delay:-6s; }
+    .c3::before { width:40px;height:40px; top:-22px; left:16px; }
+    .c3::after  { width:30px;height:30px; top:-16px; left:46px; }
+    @keyframes cloudMove {
+      from { left: -120px; }
+      to   { left: 110%; }
+    }
+
+    /* Ground */
+    .ground {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 220px;
+    }
+
+    /* Sidewalk */
+    .sidewalk {
+      position: absolute;
+      bottom: 58px; left: 0; right: 0;
+      height: 12px;
+      background: repeating-linear-gradient(90deg, #9ca3af 0 30px, #d1d5db 30px 60px);
+    }
+
+    .sidewalk-bottom {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 12px;
+      background: repeating-linear-gradient(90deg, #9ca3af 0 30px, #d1d5db 30px 60px);
+    }
+
+    /* Road */
+    .road {
+      position: absolute;
+      bottom: 12px; left: 0; right: 0;
+      height: 46px;
+      background: #374151;
+    }
+
+    .road-line {
+      position: absolute;
+      top: 50%; left: 0; right: 0;
+      height: 4px;
+      transform: translateY(-50%);
+      background: repeating-linear-gradient(90deg, #f59e0b 0 32px, transparent 32px 64px);
+      animation: roadScroll 1.2s linear infinite;
+    }
+    @keyframes roadScroll {
+      from { background-position: 0 0; }
+      to   { background-position: -64px 0; }
+    }
+
+    /* Buildings */
+    .buildings {
+      position: absolute;
+      bottom: 70px; left: 0; right: 0;
+      height: 200px;
+      display: flex;
+      align-items: flex-end;
+      gap: 0;
+      padding: 0 20px;
+    }
+
+    .building {
+      position: relative;
+      flex-shrink: 0;
+      border-radius: 3px 3px 0 0;
+      image-rendering: pixelated;
+    }
+
+    .building .windows {
+      position: absolute;
+      inset: 6px 5px 0;
+      display: grid;
+      gap: 3px;
+    }
+
+    .building .win {
+      background: rgba(255,255,255,0.15);
+      border-radius: 1px;
+      transition: background 0.3s;
+    }
+
+    .building .win.lit { background: #fef08a; box-shadow: 0 0 4px #fde68a; }
+    .building .win.lit2 { background: #bfdbfe; box-shadow: 0 0 4px #93c5fd; }
+
+    /* Trees */
+    .tree {
+      position: absolute;
+      bottom: 69px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .tree-top {
+      width: 20px; height: 28px;
+      background: #16a34a;
+      clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    }
+    .tree-top2 {
+      width: 26px; height: 22px;
+      background: #15803d;
+      clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+      margin-top: -10px;
+    }
+    .tree-trunk {
+      width: 6px; height: 10px;
+      background: #92400e;
+    }
+
+    /* Pedestrians */
+    .pedestrian {
+      position: absolute;
+      bottom: 72px;
+      width: 12px;
+      height: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .ped-head {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #fbbf24;
+      margin-bottom: 1px;
+    }
+    .ped-body {
+      width: 10px; height: 10px;
+      border-radius: 2px;
+    }
+    .ped-walk {
+      animation: pedWalk 6s linear infinite;
+    }
+    @keyframes pedWalk {
+      0%   { left: -20px; }
+      100% { left: 105%; }
+    }
+
+    /* Robocar */
+    .robocar {
+      position: absolute;
+      bottom: 16px;
+      width: 68px;
+      height: 32px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+    .robocar.active { display: flex; }
+    .robocar-body {
+      width: 68px; height: 24px;
+      background: #2563eb;
+      border-radius: 5px 5px 2px 2px;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.5);
+    }
+    .robocar-roof {
+      position: absolute;
+      top: -13px; left: 10px;
+      width: 48px; height: 16px;
+      background: #1d4ed8;
+      border-radius: 6px 6px 0 0;
+    }
+    .robocar-win {
+      position: absolute;
+      top: -11px; left: 14px;
+      width: 40px; height: 12px;
+      background: #bfdbfe;
+      border-radius: 4px 4px 0 0;
+      opacity: 0.9;
+    }
+    .robocar-wheel {
+      position: absolute;
+      bottom: -5px;
+      width: 14px; height: 14px;
+      background: #1e293b;
+      border-radius: 50%;
+      border: 2px solid #94a3b8;
+      animation: spin 0.5s linear infinite;
+    }
+    .robocar-wheel.left  { left: 6px; }
+    .robocar-wheel.right { right: 6px; }
+    .robocar-label {
+      position: absolute;
+      top: 5px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .robocar-sensor {
+      position: absolute;
+      top: -18px; left: 50%;
+      transform: translateX(-50%);
+      width: 8px; height: 8px;
+      background: #f59e0b;
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(245,158,11,0.3);
+      animation: sensorPulse 1s ease-in-out infinite;
+    }
+    @keyframes sensorPulse {
+      0%,100% { box-shadow: 0 0 0 3px rgba(245,158,11,0.3); }
+      50% { box-shadow: 0 0 0 8px rgba(245,158,11,0.1); }
+    }
+    .robocar-horn {
+      position: absolute;
+      top: -28px; left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: #fbbf24;
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .robocar:hover .robocar-horn { opacity: 1; }
+
+    .robocar-drive {
+      animation: roboDrive 6s linear infinite;
+    }
+    @keyframes roboDrive {
+      0%   { left: -80px; }
+      100% { left: 110%; }
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Staring pedestrians */
+    .ped-stare .ped-head::after {
+      content: '👀';
+      position: absolute;
+      font-size: 8px;
+      top: -2px; left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* Traffic light */
+    .traffic-light {
+      position: absolute;
+      bottom: 70px;
+      right: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      z-index: 5;
+    }
+    .tl-pole {
+      width: 4px; height: 30px;
+      background: #374151;
+    }
+    .tl-box {
+      width: 14px;
+      background: #111827;
+      border-radius: 3px;
+      padding: 3px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .tl-light {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #374151;
+    }
+    .tl-light.on-red    { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    .tl-light.on-yellow { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+    .tl-light.on-green  { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+
+    /* ===== CONTROL PANEL ===== */
+    .panel-wrap {
+      width: 100%;
+      max-width: 960px;
+      padding: 12px 16px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .panel-card {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 14px 16px;
+      border: 1px solid #334155;
+    }
+
+    .panel-card h3 {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+
+    .city-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .city-tab {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0f172a;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      transition: all 0.2s;
+      font-family: 'Courier New', monospace;
+    }
+    .city-tab:hover { background: #1e3a8a; color: #bfdbfe; }
+    .city-tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+    .scene-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .scene-tab {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      background: #0f172a;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      transition: all 0.2s;
+      font-family: 'Courier New', monospace;
+    }
+    .scene-tab:hover { background: #14532d; color: #86efac; }
+    .scene-tab.active { background: #15803d; color: #fff; border-color: #16a34a; }
+
+    /* ===== ACTION BUTTONS ===== */
+    .actions {
+      width: 100%;
+      max-width: 960px;
+      padding: 12px 16px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      flex: 1;
+      min-width: 140px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .action-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.15);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .action-btn:hover::after { opacity: 1; }
+    .action-btn:active { transform: scale(0.97); }
+
+    .btn-peak   { background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; box-shadow: 0 3px 12px rgba(220,38,38,0.4); }
+    .btn-test   { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 3px 12px rgba(37,99,235,0.4); }
+    .btn-night  { background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; box-shadow: 0 3px 12px rgba(124,58,237,0.4); }
+    .btn-rain   { background: linear-gradient(135deg, #0891b2, #0e7490); color: #fff; box-shadow: 0 3px 12px rgba(8,145,178,0.4); }
+
+    /* ===== STATUS BAR ===== */
+    .status-bar {
+      width: 100%;
+      max-width: 960px;
+      padding: 10px 16px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.7rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .stat-val {
+      color: #60a5fa;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .stat-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    /* ===== OPINION LOG ===== */
+    .log-wrap {
+      width: 100%;
+      max-width: 960px;
+      padding: 12px 16px 24px;
+    }
+
+    .log-card {
+      background: #1e293b;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      padding: 14px 16px;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .log-title {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .log-count {
+      font-size: 0.68rem;
+      color: #2563eb;
+      background: #1e3a8a;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .log-item {
+      background: #0f172a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.76rem;
+      color: #cbd5e1;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      animation: slideIn 0.3s ease;
+      border-left: 3px solid transparent;
+    }
+    .log-item.pos { border-color: #22c55e; }
+    .log-item.neg { border-color: #ef4444; }
+    .log-item.neu { border-color: #f59e0b; }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-tag {
+      font-size: 0.62rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+    .tag-pos { background: #14532d; color: #86efac; }
+    .tag-neg { background: #450a0a; color: #fca5a5; }
+    .tag-neu { background: #451a03; color: #fcd34d; }
+
+    .log-empty {
+      color: #475569;
+      font-size: 0.75rem;
+      text-align: center;
+      padding: 16px;
+    }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #1e293b;
+      border-radius: 16px;
+      border: 1px solid #334155;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+      transform: scale(0.92) translateY(12px);
+      transition: transform 0.3s;
+      overflow: hidden;
+    }
+    .modal-overlay.show .modal {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      background: linear-gradient(135deg, #1e3a8a, #1e40af);
+      padding: 18px 20px 14px;
+      position: relative;
+    }
+
+    .modal-scene-tag {
+      font-size: 0.62rem;
+      letter-spacing: 2px;
+      color: #93c5fd;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .modal-car {
+      font-size: 2.2rem;
+      margin-bottom: 6px;
+    }
+
+    .modal-question {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.45;
+    }
+
+    .modal-body {
+      padding: 16px 20px;
+    }
+
+    .modal-context {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.74rem;
+      color: #64748b;
+      margin-bottom: 14px;
+      line-height: 1.6;
+      border-left: 3px solid #2563eb;
+    }
+
+    .modal-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .option-btn {
+      padding: 11px 14px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.45;
+    }
+    .option-btn:hover {
+      background: #1e3a8a;
+      border-color: #2563eb;
+      color: #bfdbfe;
+    }
+    .option-btn.selected {
+      background: #1e3a8a;
+      border-color: #3b82f6;
+      color: #bfdbfe;
+    }
+    .option-btn.selected-pos { background: #14532d; border-color: #22c55e; color: #86efac; }
+    .option-btn.selected-neg { background: #450a0a; border-color: #ef4444; color: #fca5a5; }
+    .option-btn.selected-neu { background: #451a03; border-color: #f59e0b; color: #fcd34d; }
+
+    .opt-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .modal-input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e2e8f0;
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      resize: none;
+      height: 60px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .modal-input:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+    .modal-input::placeholder { color: #475569; }
+
+    .modal-footer {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .modal-btn {
+      padding: 9px 20px;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .modal-btn-cancel {
+      background: #0f172a;
+      color: #64748b;
+      border: 1px solid #334155;
+    }
+    .modal-btn-cancel:hover { color: #94a3b8; border-color: #475569; }
+    .modal-btn-submit {
+      background: #2563eb;
+      color: #fff;
+    }
+    .modal-btn-submit:hover { background: #1d4ed8; }
+    .modal-btn-submit:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    /* Rain overlay */
+    .rain-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+      display: none;
+    }
+    .rain-overlay.active { display: block; }
+    .raindrop {
+      position: absolute;
+      width: 1px;
+      background: linear-gradient(transparent, rgba(147,197,253,0.6));
+      animation: rainFall linear infinite;
+    }
+    @keyframes rainFall {
+      from { transform: translateY(-20px); opacity: 0.8; }
+      to   { transform: translateY(360px); opacity: 0; }
+    }
+
+    /* Night overlay */
+    .night-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(2,6,23,0.6);
+      pointer-events: none;
+      z-index: 7;
+      display: none;
+      border-radius: 10px;
+    }
+    .night-overlay.active { display: block; }
+
+    /* Toast */
+    .mini-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 0.78rem;
+      color: #e2e8f0;
+      z-index: 200;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .mini-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Scrollbar */
+    .log-list::-webkit-scrollbar { width: 4px; }
+    .log-list::-webkit-scrollbar-track { background: #0f172a; border-radius: 2px; }
+    .log-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    @media (max-width: 600px) {
+      .panel-wrap { grid-template-columns: 1fr; }
+      .city-canvas { height: 240px; }
+      .buildings { padding: 0 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🥕</div>
+      <div>
+        <div class="logo-text">萝卜实验室</div>
+        <div class="logo-sub">城市进化模拟器 v1.0</div>
+      </div>
+    </div>
+    <div class="badge">🏛 交通局长模式</div>
+  </div>
+
+  <!-- CITY MAP -->
+  <div class="city-wrap">
+    <div class="city-title">▌ 实时城市沙盘</div>
+    <div class="city-canvas" id="cityCanvas">
+      <div class="sky-bg"></div>
+      <div class="sun"></div>
+      <div class="cloud c1"></div>
+      <div class="cloud c2"></div>
+      <div class="cloud c3"></div>
+
+      <!-- Night / Rain overlays -->
+      <div class="night-overlay" id="nightOverlay"></div>
+      <div class="rain-overlay" id="rainOverlay"></div>
+
+      <div class="ground">
+        <!-- Buildings -->
+        <div class="buildings" id="buildings">
+          <!-- rendered by JS -->
+        </div>
+
+        <!-- Trees -->
+        <div class="tree" style="left:5%">
+          <div class="tree-top"></div>
+          <div class="tree-top2"></div>
+          <div class="tree-trunk"></div>
+        </div>
+        <div class="tree" style="left:38%">
+          <div class="tree-top"></div>
+          <div class="tree-top2"></div>
+          <div class="tree-trunk"></div>
+        </div>
+        <div class="tree" style="left:72%">
+          <div class="tree-top"></div>
+          <div class="tree-top2"></div>
+          <div class="tree-trunk"></div>
+        </div>
+        <div class="tree" style="right:4%">
+          <div class="tree-top"></div>
+          <div class="tree-top2"></div>
+          <div class="tree-trunk"></div>
+        </div>
+
+        <!-- Traffic light -->
+        <div class="traffic-light">
+          <div class="tl-box">
+            <div class="tl-light" id="tlRed"></div>
+            <div class="tl-light" id="tlYellow"></div>
+            <div class="tl-light" id="tlGreen"></div>
+          </div>
+          <div class="tl-pole"></div>
+        </div>
+
+        <!-- Sidewalk -->
+        <div class="sidewalk"></div>
+        <!-- Road -->
+        <div class="road">
+          <div class="road-line" id="roadLine"></div>
+        </div>
+        <!-- Bottom sidewalk -->
+        <div class="sidewalk-bottom"></div>
+
+        <!-- Pedestrians -->
+        <div class="pedestrian ped-walk" id="ped1" style="animation-duration:7s;animation-delay:0s">
+          <div class="ped-head"></div>
+          <div class="ped-body" style="background:#ef4444"></div>
+        </div>
+        <div class="pedestrian ped-walk" id="ped2" style="animation-duration:9s;animation-delay:-3s">
+          <div class="ped-head"></div>
+          <div class="ped-body" style="background:#22c55e"></div>
+        </div>
+        <div class="pedestrian ped-walk" id="ped3" style="animation-duration:11s;animation-delay:-6s;animation-direction:reverse">
+          <div class="ped-head" style="background:#93c5fd"></div>
+          <div class="ped-body" style="background:#f97316"></div>
+        </div>
+
+        <!-- Robocar -->
+        <div class="robocar" id="robocar">
+          <div class="robocar-body">
+            <div class="robocar-roof"></div>
+            <div class="robocar-win"></div>
+            <div class="robocar-sensor"></div>
+            <div class="robocar-label">萝卜快跑</div>
+            <div class="robocar-wheel left"></div>
+            <div class="robocar-wheel right"></div>
+          </div>
+          <div class="robocar-horn">点击互动</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROL PANEL -->
+  <div class="panel-wrap">
+    <div class="panel-card">
+      <h3>🌆 城市选择</h3>
+      <div class="city-tabs">
+        <button class="city-tab active" onclick="selectCity('wuhan', this)">武汉</button>
+        <button class="city-tab" onclick="selectCity('shenzhen', this)">深圳</button>
+        <button class="city-tab" onclick="selectCity('beijing', this)">北京</button>
+      </div>
+    </div>
+    <div class="panel-card">
+      <h3>🗺 场景选择</h3>
+      <div class="scene-tabs">
+        <button class="scene-tab active" onclick="selectScene('commercial', this)">商业区</button>
+        <button class="scene-tab" onclick="selectScene('residential', this)">居民区</button>
+        <button class="scene-tab" onclick="selectScene('hospital', this)">医院周边</button>
+        <button class="scene-tab" onclick="selectScene('school', this)">学校门口</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION BUTTONS -->
+  <div class="actions">
+    <button class="action-btn btn-peak" onclick="triggerAction('peak')">
+      🚨 高峰期投放
+    </button>
+    <button class="action-btn btn-test" onclick="triggerAction('test')">
+      🧪 试运行测试
+    </button>
+    <button class="action-btn btn-night" onclick="triggerAction('night')">
+      🌙 夜间专线
+    </button>
+    <button class="action-btn btn-rain" onclick="triggerAction('rain')">
+      🌧 雨天紧急调度
+    </button>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="stat">
+      <div class="stat-dot"></div>
+      城市 <span class="stat-val" id="statCity">武汉</span>
+    </div>
+    <div class="stat">
+      📍 场景 <span class="stat-val" id="statScene">商业区</span>
+    </div>
+    <div class="stat">
+      🚗 在线车辆 <span class="stat-val" id="statCars">0</span>
+    </div>
+    <div class="stat">
+      🗳 已收集意见 <span class="stat-val" id="statOpinions">0</span>
+    </div>
+    <div class="stat">
+      📊 局长信任度 <span class="stat-val" id="statTrust">86%</span>
+    </div>
+  </div>
+
+  <!-- OPINION LOG -->
+  <div class="log-wrap">
+    <div class="log-card">
+      <div class="log-header">
+        <div class="log-title">📋 市民意见档案</div>
+        <div class="log-count" id="logCount">0 条</div>
+      </div>
+      <div class="log-list" id="logList">
+        <div class="log-empty">暂无意见记录 — 开始投放，收集市民真实反馈</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-scene-tag" id="modalTag">高峰期 · 武汉商业区</div>
+        <div class="modal-car">🚕</div>
+        <div class="modal-question" id="modalQuestion">
+          路人都在看我，你觉得我是太显眼了，还是不够懂规矩？
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-context" id="modalContext">
+          当前场景：武汉商业区早高峰，萝卜快跑正在运营中。
+        </div>
+        <div class="modal-options" id="modalOptions">
+          <!-- filled by JS -->
+        </div>
+        <textarea class="modal-input" id="modalFreeText" placeholder="局长补充意见（选填）：你还想调整什么？路权？速度？区域限制？"></textarea>
+        <div class="modal-footer">
+          <button class="modal-btn modal-btn-cancel" onclick="closeModal()">关闭</button>
+          <button class="modal-btn modal-btn-submit" id="submitBtn" onclick="submitOpinion()" disabled>提交决策</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini Toast -->
+  <div class="mini-toast" id="miniToast"></div>
+
+  <script>
+    // ===== STATE =====
+    const state = {
+      city: 'wuhan',
+      scene: 'commercial',
+      cars: 0,
+      opinions: 0,
+      trust: 86,
+      selectedOption: null,
+      currentAction: null,
+    };
+
+    const cityNames = { wuhan:'武汉', shenzhen:'深圳', beijing:'北京' };
+    const sceneNames = { commercial:'商业区', residential:'居民区', hospital:'医院周边', school:'学校门口' };
+
+    // ===== BUILDINGS =====
+    const buildingSets = {
+      wuhan: [
+        { w:52, h:140, color:'#1d4ed8', cols:3, rows:6 },
+        { w:38, h:90,  color:'#f97316', cols:2, rows:4 },
+        { w:60, h:170, color:'#0f766e', cols:4, rows:7 },
+        { w:44, h:110, color:'#7c3aed', cols:3, rows:5 },
+        { w:36, h:75,  color:'#b45309', cols:2, rows:3 },
+        { w:56, h:155, color:'#1d4ed8', cols:3, rows:7 },
+        { w:42, h:100, color:'#15803d', cols:2, rows:4 },
+        { w:64, h:180, color:'#0369a1', cols:4, rows:8 },
+      ],
+      shenzhen: [
+        { w:48, h:160, color:'#0369a1', cols:3, rows:7 },
+        { w:40, h:185, color:'#1d4ed8', cols:2, rows:8 },
+        { w:68, h:200, color:'#0f766e', cols:4, rows:9 },
+        { w:36, h:120, color:'#7c3aed', cols:2, rows:5 },
+        { w:52, h:170, color:'#b45309', cols:3, rows:7 },
+        { w:44, h:140, color:'#1d4ed8', cols:3, rows:6 },
+        { w:60, h:190, color:'#0369a1', cols:3, rows:8 },
+      ],
+      beijing: [
+        { w:60, h:100, color:'#92400e', cols:4, rows:4 },
+        { w:44, h:130, color:'#1d4ed8', cols:3, rows:5 },
+        { w:52, h:160, color:'#374151', cols:3, rows:7 },
+        { w:40, h:85,  color:'#92400e', cols:2, rows:3 },
+        { w:64, h:145, color:'#1d4ed8', cols:4, rows:6 },
+        { w:36, h:110, color:'#15803d', cols:2, rows:5 },
+        { w:56, h:175, color:'#0369a1', cols:3, rows:8 },
+        { w:48, h:130, color:'#374151', cols:3, rows:6 },
+      ],
+    };
+
+    function renderBuildings() {
+      const container = document.getElementById('buildings');
+      container.innerHTML = '';
+      const set = buildingSets[state.city];
+      set.forEach((b, i) => {
+        const div = document.createElement('div');
+        div.className = 'building';
+        div.style.cssText = `width:${b.w}px;height:${b.h}px;background:${b.color};margin-right:${i%3===0?8:4}px;`;
+        // windows
+        const wins = document.createElement('div');
+        wins.className = 'windows';
+        wins.style.gridTemplateColumns = `repeat(${b.cols},1fr)`;
+        wins.style.gridTemplateRows = `repeat(${b.rows},1fr)`;
+        for (let j = 0; j < b.cols * b.rows; j++) {
+          const w = document.createElement('div');
+          const r = Math.random();
+          w.className = 'win' + (r > 0.6 ? ' lit' : r > 0.4 ? ' lit2' : '');
+          wins.appendChild(w);
+        }
+        div.appendChild(wins);
+        container.appendChild(div);
+      });
+    }
+
+    // ===== TRAFFIC LIGHT =====
+    let tlState = 0;
+    function tickTrafficLight() {
+      const lights = [
+        document.getElementById('tlRed'),
+        document.getElementById('tlYellow'),
+        document.getElementById('tlGreen')
+      ];
+      lights.forEach(l => l.className = 'tl-light');
+      const classes = ['on-red','on-yellow','on-green'];
+      lights[tlState].className = 'tl-light ' + classes[tlState];
+      tlState = (tlState + 1) % 3;
+    }
+    setInterval(tickTrafficLight, 1600);
+    tickTrafficLight();
+
+    // ===== RAIN =====
+    function buildRain() {
+      const overlay = document.getElementById('rainOverlay');
+      overlay.innerHTML = '';
+      for (let i = 0; i < 60; i++) {
+        const d = document.createElement('div');
+        d.className = 'raindrop';
+        const h = Math.random() * 30 + 15;
+        d.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;height:${h}px;animation-duration:${Math.random()*0.4+0.5}s;animation-delay:${Math.random()*1}s;`;
+        overlay.appendChild(d);
+      }
+    }
+    buildRain();
+
+    // ===== CITY/SCENE SELECT =====
+    function selectCity(city, el) {
+      state.city = city;
+      document.querySelectorAll('.city-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('statCity').textContent = cityNames[city];
+      renderBuildings();
+      showMiniToast(`已切换至 ${cityNames[city]}`);
+    }
+
+    function selectScene(scene, el) {
+      state.scene = scene;
+      document.querySelectorAll('.scene-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('statScene').textContent = sceneNames[scene];
+      showMiniToast(`场景：${sceneNames[scene]}`);
+    }
+
+    // ===== ACTION CONFIGS =====
+    const actions = {
+      peak: {
+        label: '高峰期投放',
+        tag: '🚨 早高峰',
+        car: '🚕',
+        question: '路人都在看我，你觉得我是太显眼了，还是不够懂规矩？',
+        context: '早高峰期间，道路拥挤，萝卜快跑正在运营中，路人频繁侧目。作为交通局长，你如何决策？',
+        options: [
+          { icon:'😤', text:'太显眼了，应该限制外观颜色，低调一点', sentiment:'neg', tag:'外观规范' },
+          { icon:'📏', text:'速度太慢，在高峰期堵路，应设置最低车速', sentiment:'neg', tag:'路权限制' },
+          { icon:'✅', text:'这正是高峰期最需要的，缓解打车难问题', sentiment:'pos', tag:'支持扩张' },
+          { icon:'🗺', text:'应限定特定路段，不能全路段随意行驶', sentiment:'neu', tag:'区域限制' },
+        ]
+      },
+      test: {
+        label: '试运行测试',
+        tag: '🧪 测试阶段',
+        car: '🤖',
+        question: '我刚才在路口停顿了3秒才起步，后面司机在按喇叭。我该怎么办？',
+        context: '试运行阶段，萝卜快跑在路口决策时间略长，引发跟车司机不满。',
+        options: [
+          { icon:'⚡', text:'应该优化算法，缩短决策时间，跟上人类驾驶节奏', sentiment:'pos', tag:'技术优化' },
+          { icon:'🛡', text:'安全第一，谨慎停顿是对的，其他车辆需适应', sentiment:'pos', tag:'安全优先' },
+          { icon:'🚧', text:'测试期应限制在低流量路段，不宜上主干道', sentiment:'neg', tag:'区域限制' },
+          { icon:'📊', text:'需要更多数据，先观察一个月再做决策', sentiment:'neu', tag:'谨慎观望' },
+        ]
+      },
+      night: {
+        label: '夜间专线',
+        tag: '🌙 夜间运营',
+        car: '🌙',
+        question: '凌晨2点，我是这条路上唯一的车，但还是有乘客叫我，我该开吗？',
+        context: '夜间运营：凌晨时段，道路空旷，部分乘客有出行需求，但深夜路况复杂。',
+        options: [
+          { icon:'🟢', text:'深夜出行需求真实存在，全天候运营是优势', sentiment:'pos', tag:'全天候运营' },
+          { icon:'🌙', text:'夜间环境复杂，应限制在23点前停止运营', sentiment:'neg', tag:'时段限制' },
+          { icon:'👥', text:'夜间独自乘车安全存疑，应增加安全功能', sentiment:'neu', tag:'安全监管' },
+          { icon:'🔒', text:'深夜仅限机场、火车站等固定场景使用', sentiment:'neu', tag:'场景限制' },
+        ]
+      },
+      rain: {
+        label: '雨天调度',
+        tag: '🌧 雨天应急',
+        car: '🚗',
+        question: '大雨中我刚刚在积水路段减速到5km/h，后面堵了十几辆车，对还是错？',
+        context: '暴雨天气，路面积水，萝卜快跑超低速通过引发拥堵，但规避了涉水风险。',
+        options: [
+          { icon:'🌧', text:'雨天保守驾驶是对的，安全优先于效率', sentiment:'pos', tag:'安全驾驶' },
+          { icon:'🚦', text:'应该主动让路，遇到积水直接绕行不走该段', sentiment:'neu', tag:'绕路机制' },
+          { icon:'📱', text:'雨天应暂停运营，等路况改善再上路', sentiment:'neg', tag:'暂停运营' },
+          { icon:'🔄', text:'需要与市政数据联动，提前规划避开积水路段', sentiment:'pos', tag:'数据联动' },
+        ]
+      },
+    };
+
+    // ===== MODAL =====
+    function openModal(actionKey) {
+      const a = actions[actionKey];
+      state.currentAction = actionKey;
+      state.selectedOption = null;
+
+      document.getElementById('modalTag').textContent = `${a.tag} · ${cityNames[state.city]}${sceneNames[state.scene]}`;
+      document.getElementById('modalQuestion').textContent = a.question;
+      document.getElementById('modalContext').textContent = `当前场景：${cityNames[state.city]}${sceneNames[state.scene]}，${a.context}`;
+      document.getElementById('modalFreeText').value = '';
+      document.getElementById('submitBtn').disabled = true;
+
+      const opts = document.getElementById('modalOptions');
+      opts.innerHTML = '';
+      a.options.forEach((opt, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.dataset.index = i;
+        btn.dataset.sentiment = opt.sentiment;
+        btn.dataset.tag = opt.tag;
+        btn.dataset.text = opt.text;
+        btn.innerHTML = `<span class="opt-icon">${opt.icon}</span><span>${opt.text}<br><small style="color:#475569;font-size:0.68rem">[${opt.tag}]</small></span>`;
+        btn.onclick = () => selectOption(btn, i);
+        opts.appendChild(btn);
+      });
+
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+
+    function selectOption(el, i) {
+      document.querySelectorAll('.option-btn').forEach(b => {
+        b.classList.remove('selected','selected-pos','selected-neg','selected-neu');
+      });
+      const s = el.dataset.sentiment;
+      el.classList.add('selected', s === 'pos' ? 'selected-pos' : s === 'neg' ? 'selected-neg' : 'selected-neu');
+      state.selectedOption = { index: i, sentiment: s, tag: el.dataset.tag, text: el.dataset.text };
+      document.getElementById('submitBtn').disabled = false;
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('show');
+    }
+
+    function submitOpinion() {
+      if (!state.selectedOption) return;
+      const opt = state.selectedOption;
+      const freeText = document.getElementById('modalFreeText').value.trim();
+      const action = actions[state.currentAction];
+
+      // Add to log
+      addLog({
+        sentiment: opt.sentiment,
+        tag: opt.tag,
+        text: opt.text,
+        action: action.label,
+        city: cityNames[state.city],
+        scene: sceneNames[state.scene],
+        extra: freeText,
+      });
+
+      // Update stats
+      state.opinions++;
+      document.getElementById('statOpinions').textContent = state.opinions;
+      document.getElementById('logCount').textContent = `${state.opinions} 条`;
+
+      // Trust change
+      if (opt.sentiment === 'pos') state.trust = Math.min(99, state.trust + 2);
+      else if (opt.sentiment === 'neg') state.trust = Math.max(30, state.trust - 1);
+      document.getElementById('statTrust').textContent = state.trust + '%';
+
+      closeModal();
+      showMiniToast('✅ 决策已记录，市民感谢局长！');
+    }
+
+    const sentimentLabel = { pos:'支持', neg:'反对', neu:'中立' };
+    const sentimentEmoji  = { pos:'🟢', neg:'🔴', neu:'🟡' };
+
+    function addLog(data) {
+      const list = document.getElementById('logList');
+      const empty = list.querySelector('.log-empty');
+      if (empty) empty.remove();
+
+      const item = document.createElement('div');
+      item.className = `log-item ${data.sentiment}`;
+      item.innerHTML = `
+        <span>${sentimentEmoji[data.sentiment]}</span>
+        <div style="flex:1">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:3px;">
+            <span class="log-tag tag-${data.sentiment}">${sentimentLabel[data.sentiment]}</span>
+            <span class="log-tag" style="background:#1e293b;color:#64748b;">${data.tag}</span>
+            <span class="log-tag" style="background:#1e293b;color:#64748b;">${data.city}·${data.scene}</span>
+          </div>
+          <div style="color:#cbd5e1;">${data.text}</div>
+          ${data.extra ? `<div style="color:#64748b;font-size:0.7rem;margin-top:3px;">💬 ${data.extra}</div>` : ''}
+          <div style="color:#475569;font-size:0.68rem;margin-top:2px;">${data.action}</div>
+        </div>
+      `;
+      list.prepend(item);
+    }
+
+    // ===== TRIGGER ACTION =====
+    let carDriving = false;
+    function triggerAction(actionKey) {
+      // Launch robocar
+      launchCar();
+
+      // Apply visual effects
+      const night = document.getElementById('nightOverlay');
+      const rain  = document.getElementById('rainOverlay');
+      night.classList.remove('active');
+      rain.classList.remove('active');
+      if (actionKey === 'night') night.classList.add('active');
+      if (actionKey === 'rain')  rain.classList.add('active');
+
+      // Open modal after brief delay
+      setTimeout(() => openModal(actionKey), 800);
+    }
+
+    function launchCar() {
+      const car = document.getElementById('robocar');
+      car.classList.remove('robocar-drive');
+      void car.offsetWidth;
+      car.classList.add('active', 'robocar-drive');
+      state.cars = Math.floor(Math.random() * 5) + 1;
+      document.getElementById('statCars').textContent = state.cars;
+
+      car.onclick = () => showMiniToast('🤖 萝卜快跑：我在认真开车，不要分心！');
+    }
+
+    // ===== MINI TOAST =====
+    let toastTimer = null;
+    function showMiniToast(msg) {
+      const t = document.getElementById('miniToast');
+      t.textContent = msg;
+      t.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+    }
+
+    // ===== INIT =====
+    renderBuildings();
+
+    // Auto-cycle windows lighting
+    setInterval(() => {
+      const wins = document.querySelectorAll('.win');
+      wins.forEach(w => {
+        if (Math.random() > 0.97) {
+          const r = Math.random();
+          w.className = 'win' + (r > 0.5 ? ' lit' : r > 0.3 ? ' lit2' : '');
+        }
+      });
+    }, 800);
+
+    // Close modal on overlay click
+    document.getElementById('modalOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+  </script>
+</body>
+</html>
